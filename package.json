@@ -1,0 +1,5 @@
+{
+  "name": "docroom",
+  "private": true,
+  "workspaces": ["api", "web"]
+}
