@@ -53,9 +53,16 @@ export default function Dashboard() {
         {docs.map(d => (
           <li key={d._id} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid #eee' }}>
             <span>{d.name}</span>
-            <a href={`/docs/${d._id}`}>
-              Open
-            </a>
+            <span style={{ display:'flex', gap:8 }}>
+              <a href={`/docs/${d._id}`}>Open</a>
+              <button onClick={async ()=>{
+                const email = prompt('Share with user email (must exist):');
+                if (!email) return;
+                const role = 'viewer';
+                const res = await fetch(`${API}/docs/${d._id}/access`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}`}, body: JSON.stringify({ email, role })});
+                if (res.ok) alert('Shared'); else alert('Share failed');
+              }}>Share</button>
+            </span>
           </li>
         ))}
       </ul>

@@ -13,14 +13,10 @@ export default function Viewer() {
 
   useEffect(() => {
     const run = async () => {
-      // load doc list to find key
-      const res = await fetch(`${API}/docs`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      const doc = data.docs.find((d: any) => d._id === id);
-      if (!doc) return;
-      const vu = await fetch(`${API}/docs/view-url/${encodeURIComponent(doc.key)}`, {
+      const vu = await fetch(`${API}/docs/view-url/${encodeURIComponent(id)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!vu.ok) return;
       const v = await vu.json();
       setUrl(v.url);
       // track open
@@ -35,19 +31,26 @@ export default function Viewer() {
 
   useEffect(() => {
     let visible = true;
+    const sessionId = Math.random().toString(36).slice(2);
     const onFocus = async () => {
       if (!visible) {
         visible = true;
-        await fetch(`${API}/analytics/track`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ docId: id, type: 'page_focus' }) });
+        await fetch(`${API}/analytics/track`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ docId: id, type: 'page_focus', sessionId }) });
       }
     };
     const onBlur = async () => {
       visible = false;
-      await fetch(`${API}/analytics/track`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ docId: id, type: 'page_blur' }) });
+      await fetch(`${API}/analytics/track`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ docId: id, type: 'page_blur', sessionId }) });
     };
+    const interval = setInterval(async () => {
+      if (visible) {
+        await fetch(`${API}/analytics/track`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ docId: id, type: 'heartbeat', sessionId }) });
+      }
+    }, 10000);
     window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);
     return () => {
+      clearInterval(interval);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('blur', onBlur);
     };

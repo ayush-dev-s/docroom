@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { s3 } from '../../shared/s3.js';
 import { config } from '../../shared/config.js';
 import { verifyToken } from '../../shared/auth.js';
-import { Doc } from './model.js';
+import { Doc, Access } from './model.js';
 
 const router = Router();
 
@@ -18,8 +18,19 @@ function requireAuth(req: any, res: any, next: any) {
   }
 }
 
+async function canRead(userId: string, docId: string) {
+  const doc = await Doc.findById(docId).select('_id ownerId');
+  if (!doc) return false;
+  if (String(doc.ownerId) === String(userId)) return true;
+  const acc = await Access.findOne({ docId: docId, userId });
+  return !!acc;
+}
+
 router.get('/', requireAuth, async (req: any, res) => {
-  const docs = await Doc.find({ ownerId: req.user.userId }).sort({ createdAt: -1 });
+  const userId = req.user.userId;
+  const accessDocs = await Access.find({ userId }).select('docId');
+  const ids = accessDocs.map((a) => a.docId);
+  const docs = await Doc.find({ $or: [{ ownerId: userId }, { _id: { $in: ids } }] }).sort({ createdAt: -1 });
   res.json({ docs });
 });
 
@@ -52,15 +63,44 @@ router.post('/finalize', requireAuth, async (req: any, res) => {
   res.json({ doc });
 });
 
-// Signed GET for viewing
-router.get('/view-url/:key', requireAuth, async (req: any, res) => {
-  const key = req.params.key as string;
+// Signed GET for viewing by docId (enforces access)
+router.get('/view-url/:docId', requireAuth, async (req: any, res) => {
+  const docId = req.params.docId as string;
+  if (!(await canRead(req.user.userId, docId))) return res.status(403).json({ message: 'Forbidden' });
+  const doc = await Doc.findById(docId);
+  if (!doc) return res.status(404).json({ message: 'Not found' });
   const url = await s3.getSignedUrlPromise('getObject', {
     Bucket: config.S3_BUCKET!,
-    Key: key,
+    Key: doc.key,
     Expires: 300,
   });
   res.json({ url });
+});
+
+// Access management (owner only)
+const accessSchemaZ = z.object({ email: z.string().email(), role: z.enum(['viewer', 'editor']).default('viewer') });
+router.post('/:docId/access', requireAuth, async (req: any, res) => {
+  const { docId } = req.params as any;
+  const doc = await Doc.findById(docId);
+  if (!doc) return res.status(404).json({ message: 'Not found' });
+  if (String(doc.ownerId) !== String(req.user.userId)) return res.status(403).json({ message: 'Only owner can share' });
+  const parsed = accessSchemaZ.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(parsed.error);
+  const { email, role } = parsed.data;
+  const { User } = await import('../auth/model.js');
+  const u = await User.findOne({ email });
+  if (!u) return res.status(404).json({ message: 'User not found' });
+  await Access.updateOne({ docId, userId: u.id }, { $set: { role, createdBy: req.user.userId } }, { upsert: true });
+  res.json({ ok: true });
+});
+
+router.get('/:docId/access', requireAuth, async (req: any, res) => {
+  const { docId } = req.params as any;
+  const doc = await Doc.findById(docId);
+  if (!doc) return res.status(404).json({ message: 'Not found' });
+  if (String(doc.ownerId) !== String(req.user.userId)) return res.status(403).json({ message: 'Only owner can view access' });
+  const access = await Access.find({ docId }).populate('userId', 'email name');
+  res.json({ access });
 });
 
 export default router;

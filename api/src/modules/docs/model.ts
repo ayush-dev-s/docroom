@@ -13,3 +13,15 @@ const docSchema = new mongoose.Schema(
 );
 
 export const Doc = mongoose.model('Doc', docSchema);
+
+const accessSchema = new mongoose.Schema(
+  {
+    docId: { type: mongoose.Schema.Types.ObjectId, ref: 'Doc', index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+    role: { type: String, enum: ['viewer', 'editor'], default: 'viewer' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  },
+  { timestamps: true }
+);
+accessSchema.index({ docId: 1, userId: 1 }, { unique: true });
+export const Access = mongoose.model('Access', accessSchema);

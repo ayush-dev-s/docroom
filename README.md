@@ -21,6 +21,10 @@ Seed demo user: `npm run seed -w api`
 - Deploy API first. Copy its URL.
 - In Web service env, set `NEXT_PUBLIC_API_URL` = API URL. Redeploy.
 
+### One‑click deploys
+- API (Render): [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ayush-dev-s/docroom)
+- Web (Vercel): [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ayush-dev-s/docroom&project-name=docroom-web&repository-name=docroom&root-directory=web&env=NEXT_PUBLIC_API_URL)
+
 ## Notes
 - For AWS S3 uploads, client must set the same Content-Type used during presign.
 - Replace MinIO in docker with real S3 in production.
